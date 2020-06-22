@@ -43,27 +43,27 @@ async function handleControlButton(button) {
     try {
         switch (button) {
             case "start":
-                startButton.setAttribute("disabled", "disabled");
+                //startButton.setAttribute("disabled", "disabled");
                 await ApiService.startCleaning();
                 break;
             case "pause":
-                pauseButton.setAttribute("disabled", "disabled");
+                //pauseButton.setAttribute("disabled", "disabled");
                 await ApiService.pauseCleaning();
                 break;
             case "stop":
-                stopButton.setAttribute("disabled", "disabled");
+                //stopButton.setAttribute("disabled", "disabled");
                 ApiService.stopCleaning();
                 break;
             case "home":
-                homeButton.setAttribute("disabled", "disabled");
+                //homeButton.setAttribute("disabled", "disabled");
                 ApiService.driveHome();
                 break;
             case "find":
-                findRobotButton.setAttribute("disabled", "disabled");
+                //findRobotButton.setAttribute("disabled", "disabled");
                 ApiService.findRobot();
                 break;
             case "spot":
-                spotButton.setAttribute("disabled", "disabled");
+                //spotButton.setAttribute("disabled", "disabled");
                 ApiService.spotClean();
                 break;
             default:
@@ -87,7 +87,7 @@ async function handleFanspeedButton() {
     let index = await ons.openActionSheet({
         title: "Select power mode",
         cancelable: true,
-        buttons: [...Object.values(fanspeedPresets), {label: "Cancel", icon: "md-close"}]
+        buttons: [...Object.keys(fanspeedPresets), {label: "Cancel", icon: "md-close"}]
     });
 
     var level = Object.keys(fanspeedPresets)[index];
@@ -216,64 +216,58 @@ async function updateHomePage() {
     loadingBarHome.setAttribute("indeterminate", "indeterminate");
 
     try {
-        let res = await ApiService.getCurrentStatus();
+        let res = await ApiService.getVacuumState();
         loadingBarHome.removeAttribute("indeterminate");
         fanspeedButton.removeAttribute("disabled");
         findRobotButton.removeAttribute("disabled");
         spotButton.removeAttribute("disabled");
 
-        if (res.battery) {
-            batteryStatusText.innerHTML = "Battery: " + res.battery + "%";
-            batteryStatusBar.value = res.battery;
+        var BatteryAttribute = res.find(e => e.__class === "BatteryAttribute");
+        var StatusAttribute = res.find(e => e.__class === "StatusAttribute");
+        var AreaCleanupStatsAttribute = res.find(e => e.__class === "LatestCleanupStatisticsAttribute" && e.type === "area");
+        var DurationCleanupStatsAttribute = res.find(e => e.__class === "LatestCleanupStatisticsAttribute" && e.type === "duration");
+        var FanSpeedAttribute = res.find(e => e.__class === "FanSpeedAttribute");
+
+        if (BatteryAttribute) {
+            batteryStatusText.innerText = "Battery: " + BatteryAttribute.level + "%";
+            batteryStatusBar.value = BatteryAttribute.level;
         }
 
-        robotState.innerHTML = res.human_state;
-        if (res.error_code) {
-            robotState.innerHTML +=
-                "<span class=\"robot-error\"><ons-icon icon=\"fa-exclamation-triangle\"></ons-icon> " +
-                res.human_error +
-                " <ons-icon icon=\"fa-exclamation-triangle\"></ons-icon></span>";
-        }
+        if(StatusAttribute) {
+            if(StatusAttribute.value !== "error") {
+                robotState.innerText = StatusAttribute.value;
 
-        if (res.in_cleaning === 1 || res.in_cleaning === 2 ||
-            ["SPOT_CLEANING", "GOING_TO_TARGET", "CLEANING"].indexOf(res.state) != -1) {
-            if (["IDLE", "PAUSED", "CHARGER_DISCONNECTED"].indexOf(res.state) != -1) {
-                pauseButton.setAttribute("disabled", "disabled");
-                startButton.removeAttribute("disabled");
+                if(StatusAttribute.flag !== "none") {
+                    robotState.innerText += " " + StatusAttribute.flag;
+                }
             } else {
-                pauseButton.removeAttribute("disabled");
-                startButton.setAttribute("disabled", "disabled");
-            }
-            spotButton.setAttribute("disabled", "disabled");
-        } else {
-            spotButton.removeAttribute("disabled");
-            pauseButton.setAttribute("disabled", "disabled");
-            if (res.state !== 6) {
-                startButton.removeAttribute("disabled");
-            } else {
-                pauseButton.removeAttribute("disabled");
-                startButton.setAttribute("disabled", "disabled");
+                robotState.innerHTML +=
+                    "<span class=\"robot-error\"><ons-icon icon=\"fa-exclamation-triangle\"></ons-icon> " +
+                    StatusAttribute.metaData.error_description +
+                    " <ons-icon icon=\"fa-exclamation-triangle\"></ons-icon></span>";
             }
         }
 
-        if (["CHARGING", "DOCKING", "PAUSED", "IDLE"].indexOf(res.state) != -1) {
-            stopButton.setAttribute("disabled", "disabled");
-        } else {
-            stopButton.removeAttribute("disabled");
+        //TODO: reintroduce disabling of buttons according to possible options
+
+        if(AreaCleanupStatsAttribute) {
+            robotStateDetailsM2.innerHTML = "Area: " +
+                ("00" + (AreaCleanupStatsAttribute.value / 10000).toFixed(2)).slice(-6) + " m²";
         }
 
-        if (["RETURNING_HOME", "CHARGING", "CHARGING_PROBLEM"].indexOf(res.state) != -1) {
-            homeButton.setAttribute("disabled", "disabled");
-        } else {
-            homeButton.removeAttribute("disabled");
+        if(DurationCleanupStatsAttribute) {
+            robotStateDetailsTime.innerHTML = "Time: " + secondsToHms(DurationCleanupStatsAttribute.value);
         }
 
-        robotStateDetailsM2.innerHTML =
-            "Area: " + ("00" + (res.clean_area / 1000000).toFixed(2)).slice(-6) + " m²";
-        robotStateDetailsTime.innerHTML = "Time: " + secondsToHms(res.clean_time);
-        fanspeedButton.innerHTML =
-            "<ons-icon icon=\"fa-superpowers\"></ons-icon> " +
-            (fanspeedPresets[res.fan_power] || `Custom ${res.fan_power}%`);
+        if(FanSpeedAttribute) {
+            fanspeedButton.innerHTML = "<ons-icon icon=\"fa-superpowers\"></ons-icon> ";
+
+            if(FanSpeedAttribute.value === "custom") {
+                fanspeedButton.innerHTML += `Custom ${FanSpeedAttribute.customValue}%`;
+            } else {
+                fanspeedButton.innerHTML += FanSpeedAttribute.value;
+            }
+        }
 
         currentRefreshTimer =
             window.setTimeout(function() {

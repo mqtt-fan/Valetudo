@@ -157,11 +157,25 @@ export function VacuumMap(canvasElement) {
      * @param {object} mapData - the json data returned by the "/api/map/latest" route
      */
     function updateMap(mapData) {
-        mapDrawer.draw(mapData.image);
+        const charger_location = mapData.entities.find(e => e.type === "charger_location");
+        const robot_position = mapData.entities.find(e => e.type === "robot_position");
+        const path = mapData.entities.find(e => e.type === "path");
+
+        mapDrawer.draw(mapData.layers);
         if (options.noPath) {
-            pathDrawer.setPath({}, mapData.robot, mapData.charger, {});
+            pathDrawer.setPath(
+                {},
+                robot_position ? robot_position : undefined,
+                charger_location ? charger_location.points : undefined,
+                {}
+            );
         } else {
-            pathDrawer.setPath(mapData.path, mapData.robot, mapData.charger, mapData.goto_predicted_path);
+            pathDrawer.setPath(
+                path ? path : undefined,
+                robot_position ? robot_position : undefined,
+                charger_location ? charger_location.points : undefined,
+                mapData.goto_predicted_path //TODO
+            );
         }
         pathDrawer.draw();
 
@@ -184,16 +198,16 @@ export function VacuumMap(canvasElement) {
      * accepted by the goto / zoned_cleanup api endpoints
      * @param {{x: number, y: number}} coordinatesInMapSpace
      */
-    function convertToRealCoords(coordinatesInMapSpace) {
-        return {x: Math.floor(coordinatesInMapSpace.x * 50), y: Math.floor(coordinatesInMapSpace.y * 50)};
+    function convertToRealCoords(coordinatesInMapSpace) { //TODO
+        return {x: Math.floor(coordinatesInMapSpace.x * 5), y: Math.floor(coordinatesInMapSpace.y * 5)};
     }
 
     /**
      * Transforms coordinates in the millimeter format into the mapspace (1024*1024)
      * @param {{x: number, y: number}} coordinatesInMillimeter
      */
-    function convertFromRealCoords(coordinatesInMillimeter) {
-        return {x: Math.floor(coordinatesInMillimeter.x / 50), y: Math.floor(coordinatesInMillimeter.y / 50)};
+    function convertFromRealCoords(coordinatesInMillimeter) { //TODO
+        return {x: Math.floor(coordinatesInMillimeter.x / 5), y: Math.floor(coordinatesInMillimeter.y / 5)};
     }
 
     /**
@@ -221,7 +235,7 @@ export function VacuumMap(canvasElement) {
             redraw();
         });
 
-        mapDrawer.draw(data.image);
+        mapDrawer.draw(data.layers);
 
         switch (options.metaData) {
             case false:
@@ -236,17 +250,27 @@ export function VacuumMap(canvasElement) {
         }
 
         const boundingBox = {
-            minX: data.image.position.left,
-            minY: data.image.position.top,
-            maxX: data.image.position.left + data.image.dimensions.width,
-            maxY: data.image.position.top + data.image.dimensions.height
+            minX: 0,
+            minY: 0,
+            maxX: data.size.x / data.pixelSize,
+            maxY: data.size.y / data.pixelSize
         };
         const initialScalingFactor = Math.min(
             canvas.width / (boundingBox.maxX - boundingBox.minX),
             canvas.height / (boundingBox.maxY - boundingBox.minY)
         );
 
-        pathDrawer.setPath(data.path, data.robot, data.charger, data.goto_predicted_path);
+        const charger_location = data.entities.find(e => e.type === "charger_location");
+        const robot_position = data.entities.find(e => e.type === "robot_position");
+        const path = data.entities.find(e => e.type === "path");
+
+
+        pathDrawer.setPath(
+            path ? path : undefined,
+            robot_position ? robot_position : undefined,
+            charger_location ? charger_location.points : undefined,
+            data.goto_predicted_path //TODO
+        );
         pathDrawer.scale(initialScalingFactor);
 
         ctx.scale(initialScalingFactor, initialScalingFactor);
@@ -570,7 +594,7 @@ export function VacuumMap(canvasElement) {
         if (redrawCanvas) redrawCanvas();
     }
 
-    function addSpot(spotCoordinates = [25600, 25600]) {
+    function addSpot(spotCoordinates = [2560, 2560]) { //TODO
         const p = convertFromRealCoords({x: spotCoordinates[0], y: spotCoordinates[1]});
         const newSpot = new GotoPoint(p.x, p.y);
 

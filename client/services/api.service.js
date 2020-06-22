@@ -69,8 +69,8 @@ export class ApiService {
         await this.fetch("PUT", "api/start_cleaning_zone_by_coords", zones);
     }
 
-    static async getCurrentStatus() {
-        return await this.fetch("GET", "api/current_status");
+    static async getVacuumState() {
+        return await this.fetch("GET", "api/vacuum_state");
     }
 
     static async getConfig() {
@@ -98,7 +98,75 @@ export class ApiService {
     }
 
     static async getLatestMap() {
-        return await this.fetch("GET", "api/map/latest");
+       var response = await this.fetch("GET", "api/map/latest");
+
+       //TODO: remove and edit map rendering
+       var oldStructure = {
+           image: {
+               pixels: {
+                   floor: [],
+                   obstacle_weak: [],
+                   obstacle_strong: []
+               },
+               position: {
+                   top: 0,
+                   left: 0
+               },
+               dimensions: {
+                   height: 1024,
+                   width: 1024
+               }
+           },
+           path: {
+               points: [],
+               current_angle: 0
+           },
+           goto_predicted_path: {
+               points: [],
+               current_angle: 0
+           }
+       };
+
+       response.layers.forEach(layer => {
+           var oldPixels = [];
+
+           for(let i = 0; i < layer.pixels.length; i = i + 2) {
+               oldPixels.push([
+                   layer.pixels[i],
+                   layer.pixels[i+1]
+               ]);
+           }
+
+           switch(layer.type) {
+               case "floor":
+                   oldStructure.image.pixels.floor = oldPixels;
+                   break;
+               case "wall":
+                   oldStructure.image.pixels.obstacle_strong = oldPixels;
+                   break;
+           }
+       });
+
+       response.entities.forEach(entity => {
+            switch(entity.type) {
+                case "charger_location":
+                    oldStructure.charger = entity.points.map(p => p * 10);
+                    break;
+                case "robot_position":
+                    oldStructure.robot = entity.points.map(p => p * 10);
+                    break;
+                case "path":
+                    for(let i = 0; i < entity.points.length; i = i + 2) {
+                        oldStructure.path.points.push([
+                            entity.points[i] * 10,
+                            entity.points[i+1] * 10
+                        ]);
+                    }
+
+            }
+       });
+
+       return response;
     }
 
     static async getSpots() {

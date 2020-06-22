@@ -17,6 +17,7 @@ async function updateMapPage() {
         }
         map.initWebSocket();
     } catch (err) {
+        throw err;
         ons.notification.toast(err.message,
             {buttonLabel: "Dismiss", timeout: window.fn.toastErrorTimeout});
     } finally {
